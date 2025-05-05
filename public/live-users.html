@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Users</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .user-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .user-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .user-item:hover {
+            background-color: #f9f9f9;
+        }
+        .user-email {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .user-socket {
+            color: #888;
+            font-size: 0.9em;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+        .user-detail {
+            margin-bottom: 10px;
+        }
+        .user-detail strong {
+            display: inline-block;
+            width: 150px;
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .online {
+            background-color: #4CAF50;
+        }
+        .offline {
+            background-color: #ccc;
+        }
+        .user-count {
+            text-align: right;
+            color: #888;
+            margin-bottom: 15px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #4CAF50;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .navigation {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .navigation a {
+            color: #4CAF50;
+            text-decoration: none;
+            margin: 0 10px;
+            display: inline-block;
+            padding: 5px 0;
+        }
+        .navigation a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Users</h1>
+        <div class="user-count"><span id="userCount">0</span> users registered</div>
+        
+        <ul class="user-list" id="userList">
+            <!-- Users will be added dynamically here -->
+        </ul>
+        
+        <div class="navigation">
+            <a href="/index.html">Go to Registration Form</a>
+        </div>
+    </div>
+
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>User Details</h2>
+            <div id="userDetails">
+                <div class="loading-overlay">
+                    <div class="loader"></div> Loading user details...
+                </div>
+                <!-- User details will be added here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+
+            const socket = io();
+
+            socket.on('initialUsers', function(users) {
+                $('#userList').empty();
+                users.forEach(addUserToList);
+                updateUserCount();
+            });
+
+            socket.on('userAdded', function(user) {
+                addUserToList(user);
+                updateUserCount();
+            });
+
+            function addUserToList(user) {
+                const isOnline = !user.socketId.startsWith('offline');
+                $('#userList').append(`
+                    <li class="user-item" data-id="${user._id}">
+                        <div>
+                            <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
+                            <span class="user-email">${user.email}</span>
+                        </div>
+                        <span class="user-socket">${user.socketId}</span>
+                    </li>
+                `);
+            }
+
+            function updateUserCount() {
+                const count = $('#userList li').length;
+                $('#userCount').text(count);
+            }
+
+            $(document).on('click', '.user-item', function() {
+                const userId = $(this).data('id');
+                showUserDetails(userId);
+            });
+
+            $('.close').click(function() {
+                $('#userModal').hide();
+            });
+
+            $(window).click(function(event) {
+                if ($(event.target).is('#userModal')) {
+                    $('#userModal').hide();
+                }
+            });
+
+            function showUserDetails(userId) {
+                $('#userModal').show();
+                $('#userDetails').html('<div class="loading-overlay"><div class="loader"></div> Loading user details...</div>');
+                
+                $.ajax({
+                    url: `/users/${userId}`,
+                    method: 'GET',
+                    success: function(user) {
+                        const detailsHtml = `
+                            <div class="user-detail"><strong>Name:</strong> ${user.firstName} ${user.lastName}</div>
+                            <div class="user-detail"><strong>Email:</strong> ${user.email}</div>
+                            <div class="user-detail"><strong>Mobile:</strong> ${user.mobile}</div>
+                            <div class="user-detail"><strong>Login ID:</strong> ${user.loginId}</div>
+                            <div class="user-detail"><strong>Address:</strong> ${formatAddress(user.address)}</div>
+                            <div class="user-detail"><strong>Created:</strong> ${new Date(user.createdAt).toLocaleString()}</div>
+                        `;
+                        $('#userDetails').html(detailsHtml);
+                    },
+                    error: function(xhr) {
+                        $('#userDetails').html(`<div class="error-message">Failed to load user details: ${xhr.responseText}</div>`);
+                    }
+                });
+            }
+
+            function formatAddress(address) {
+                if (!address) return 'Not provided';
+                
+                const parts = [];
+                if (address.street) parts.push(address.street);
+                if (address.city) parts.push(address.city);
+                if (address.state) parts.push(address.state);
+                if (address.country) parts.push(address.country);
+                
+                return parts.length > 0 ? parts.join(', ') : 'Not provided';
+            }
+        });
+    </script>
+</body>
+</html>

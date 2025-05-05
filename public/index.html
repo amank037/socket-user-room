@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>webservice</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background-color: #f4f4f4;
+      }
+      .container {
+          max-width: 800px;
+          margin: 0 auto;
+          background: white;
+          padding: 30px;
+          border-radius: 5px;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      }
+      h1 {
+          color: #333;
+          text-align: center;
+          margin-bottom: 30px;
+      }
+      .form-group {
+          margin-bottom: 15px;
+      }
+      label {
+          display: block;
+          margin-bottom: 5px;
+          font-weight: bold;
+          color: #555;
+      }
+      input[type="text"],
+      input[type="email"],
+      input[type="password"] {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          box-sizing: border-box;
+          font-size: 15px;
+      }
+      input:focus {
+          outline: none;
+          border-color: #4CAF50;
+          box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+      }
+      fieldset {
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          padding: 15px;
+          margin-bottom: 20px;
+      }
+      legend {
+          padding: 0 10px;
+          font-weight: bold;
+          color: #555;
+      }
+      button {
+          background-color: #4CAF50;
+          color: white;
+          padding: 12px 20px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          width: 100%;
+          margin-top: 10px;
+      }
+      button:hover {
+          background-color: #45a049;
+      }
+      .navigation {
+          margin-top: 20px;
+          text-align: center;
+      }
+      .navigation a {
+          color: #4CAF50;
+          text-decoration: none;
+          margin: 0 10px;
+          display: inline-block;
+          padding: 5px 0;
+      }
+      .navigation a:hover {
+          text-decoration: underline;
+      }
+      .success-message {
+          display: none;
+          background-color: #dff0d8;
+          color: #3c763d;
+          padding: 15px;
+          margin-bottom: 20px;
+          border-radius: 4px;
+          text-align: center;
+      }
+      .error-message {
+          display: none;
+          background-color: #f2dede;
+          color: #a94442;
+          padding: 15px;
+          margin-bottom: 20px;
+          border-radius: 4px;
+          text-align: center;
+      }
+  </style>
+</head>
+<body>
+    <h2>User Form</h2>
+    <form id="userForm">
+        <label>First Name: <input type="text" id="firstName" name="firstName" required></label><br>
+        <label>Last Name: <input type="text" id="lastName" name="lastName" required></label><br>
+        <label>Mobile No: <input type="text" id="mobile" name="mobile" required></label><br>
+        <label>Email: <input type="email" id="email" name="email" required></label><br>
+    <fieldset>
+        <legend>Address:</legend>
+        <label>Street: <input type="text" id="street" name="street"></label><br>
+        <label>City: <input type="text" id="city" name="city"></label><br>
+        <label>State: <input type="text" id="state" name="state"></label><br>
+        <label>Country: <input type="text" id="country" name="country"></label><br>
+    </fieldset>
+        <label>Login ID: <input type="text" id="loginId" name="loginId" required></label><br>
+        <label>Password: <input type="password" id="password" name="password" required></label><br><br>
+
+    <button type="submit">Submit</button>         
+    </form>
+
+    <script>
+        // Initialize Socket.io connection
+        const socket = io();
+        
+        $('#userForm').submit(function (e) {
+          e.preventDefault();
+      
+          const userData = {
+            firstName: $('#firstName').val(),
+            lastName: $('#lastName').val(),
+            mobile: $('#mobile').val(),
+            email: $('#email').val(),
+            address: {
+              street: $('#street').val(),
+              city: $('#city').val(),
+              state: $('#state').val(),
+              country: $('#country').val(),
+            },
+            loginId: $('#loginId').val(),
+            password: $('#password').val(),
+          };
+          console.log(userData)
+          $.ajax({
+            url: '/users',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(userData),
+            success: function (response) {
+              alert('user created')
+              
+              // Add user to socket.io live_users room after successful creation
+              socket.emit('join_live_users', userData);
+              
+              $('#userForm')[0].reset()
+            },
+            error: function (xhr) {
+              alert('failed to create user: ' + xhr.responseText)
+            }
+          })
+        })
+      </script>
+      
+</body>
+<div class="navigation">
+    <a href="/users.html">View All Users</a>
+    <a href="/live-users.html">View Live Users</a>
+</div>
+</html>
