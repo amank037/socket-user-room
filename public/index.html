@@ -130,7 +130,6 @@
     </form>
 
     <script>
-        // Initialize Socket.io connection
         const socket = io();
         
         $('#userForm').submit(function (e) {
@@ -159,7 +158,6 @@
             success: function (response) {
               alert('user created')
               
-              // Add user to socket.io live_users room after successful creation
               socket.emit('join_live_users', userData);
               
               $('#userForm')[0].reset()

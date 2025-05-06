@@ -20,6 +20,7 @@
             padding: 30px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
         }
         h1 {
             color: #333;
@@ -29,6 +30,7 @@
         .user-list {
             list-style-type: none;
             padding: 0;
+            margin-bottom: 20px;
         }
         .user-item {
             padding: 15px;
@@ -147,22 +149,69 @@
         .navigation a:hover {
             text-decoration: underline;
         }
+        .refresh-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        .refresh-btn:hover {
+            background-color: #45a049;
+        }
+        .refresh-icon {
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .last-refresh {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            margin-top: 5px;
+        }
+        #refreshSpinner {
+            display: none;
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+        }
+        .empty-message {
+            text-align: center;
+            padding: 30px;
+            color: #888;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Live Users</h1>
-        <div class="user-count"><span id="userCount">0</span> users registered</div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <button id="refreshBtn" class="refresh-btn">
+                <div id="refreshSpinner" class="loader"></div>
+                <span class="refresh-icon">↻</span> Refresh Users
+            </button>
+            <div class="user-count"><span id="userCount">0</span> users registered</div>
+        </div>
+        <div class="last-refresh">Last refreshed: <span id="lastRefreshTime">Never</span></div>
         
         <ul class="user-list" id="userList">
             <!-- Users will be added dynamically here -->
+            <li class="empty-message">No users found. Click refresh to check for new users.</li>
         </ul>
         
         <div class="navigation">
-            <a href="https://node-user-api-t1lz.onrender.com/index.html">Go to Registration Form</a>
+            <a href="/index.html">Go to Registration Form</a>
         </div>
     </div>
 
+    <!-- Modal for User Details -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -178,20 +227,46 @@
 
     <script>
         $(document).ready(function() {
-
+            // Connect to socket.io
             const socket = io();
-
+            
+            // Update last refresh time
+            function updateLastRefreshTime() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+                $('#lastRefreshTime').text(timeStr);
+            }
+            
+            // Handle initial users list
             socket.on('initialUsers', function(users) {
                 $('#userList').empty();
-                users.forEach(addUserToList);
+                
+                if (users.length === 0) {
+                    $('#userList').html('<li class="empty-message">No users found. Click refresh to check for new users.</li>');
+                } else {
+                    users.forEach(addUserToList);
+                }
+                
                 updateUserCount();
+                updateLastRefreshTime();
+                $('#refreshSpinner').hide();
             });
-
+            
+            // Handle new user added
             socket.on('userAdded', function(user) {
-                addUserToList(user);
-                updateUserCount();
+                // Remove empty message if present
+                if ($('#userList .empty-message').length > 0) {
+                    $('#userList').empty();
+                }
+                
+                // Check if user already exists in the list
+                if ($(`#userList li[data-id="${user._id}"]`).length === 0) {
+                    addUserToList(user);
+                    updateUserCount();
+                }
             });
-
+            
+            // Function to add a user to the list
             function addUserToList(user) {
                 const isOnline = !user.socketId.startsWith('offline');
                 $('#userList').append(`
@@ -204,27 +279,38 @@
                     </li>
                 `);
             }
-
+            
+            // Update user count
             function updateUserCount() {
-                const count = $('#userList li').length;
+                const count = $('#userList li').length - $('#userList .empty-message').length;
                 $('#userCount').text(count);
             }
-
+            
+            // Handle manual refresh button
+            $('#refreshBtn').click(function() {
+                $('#refreshSpinner').show();
+                socket.emit('refreshUsers');
+            });
+            
+            // Handle click on user item to show details
             $(document).on('click', '.user-item', function() {
                 const userId = $(this).data('id');
                 showUserDetails(userId);
             });
-
+            
+            // Close modal when clicking on X
             $('.close').click(function() {
                 $('#userModal').hide();
             });
-
+            
+            // Close modal when clicking outside
             $(window).click(function(event) {
                 if ($(event.target).is('#userModal')) {
                     $('#userModal').hide();
                 }
             });
-
+            
+            // Function to show user details in modal
             function showUserDetails(userId) {
                 $('#userModal').show();
                 $('#userDetails').html('<div class="loading-overlay"><div class="loader"></div> Loading user details...</div>');
@@ -248,7 +334,8 @@
                     }
                 });
             }
-
+            
+            // Helper function to format address
             function formatAddress(address) {
                 if (!address) return 'Not provided';
                 
