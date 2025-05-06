@@ -308,12 +308,26 @@ async function initializeLiveUsers() {
     }
 }
 
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
-        console.log('Connected to MongoDB')
-        initializeLiveUsers()
-    })
-    .catch((err) => console.error('MongoDB connection error:', err))
+// mongoose.connect(process.env.MONGO_URI)
+//     .then(() => {
+//         console.log('Connected to MongoDB')
+//         initializeLiveUsers()
+//     })
+//     .catch((err) => console.error('MongoDB connection error:', err))
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 30000, // 30 seconds timeout
+    socketTimeoutMS: 45000, // 45 seconds socket timeout
+})
+.then(() => {
+    console.log('Connected to MongoDB');
+    initializeLiveUsers();
+})
+.catch((err) => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit process if can't connect
+});
 
 server.listen(3000, () => {
     console.log('Server started on port 3000')
