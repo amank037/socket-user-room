@@ -8,7 +8,6 @@ const app = express()
 const server = http.createServer(app)
 const io = socketIo(server)
 
-// Define User schema directly in server.js
 const userSchema = new mongoose.Schema({
     firstName: {
         type: String,
@@ -68,7 +67,7 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// Local storage for tracking live users with last DB check timestamp
+
 const liveUsers = new Map()
 let lastDbCheck = new Date(0); // Initialize to past date
 
@@ -76,31 +75,25 @@ app.use(express.static('public'))
 app.use(cors())
 app.use(express.json())
 
-// Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id)
-    
-    // Check for new users on each new connection
+
     syncUsersWithDatabase().then(() => {
-        // Send current live users list to new connections
         socket.emit('initialUsers', Array.from(liveUsers.values()))
     })
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id)
     })
-    
-    // Add a manual refresh handler
+
     socket.on('refreshUsers', async () => {
         await syncUsersWithDatabase()
         socket.emit('initialUsers', Array.from(liveUsers.values()))
     })
 })
 
-// Function to sync users from database
 async function syncUsersWithDatabase() {
     try {
-        // Find users created or updated since last check
         const newOrUpdatedUsers = await User.find({
             $or: [
                 { createdAt: { $gt: lastDbCheck } },
@@ -108,7 +101,6 @@ async function syncUsersWithDatabase() {
             ]
         })
         
-        // Add new users to our live users map
         newOrUpdatedUsers.forEach(user => {
             const liveUser = {
                 _id: user._id.toString(),
@@ -118,12 +110,10 @@ async function syncUsersWithDatabase() {
             }
             
             liveUsers.set(liveUser._id, liveUser)
-            
-            // Broadcast new user to all connected clients
+
             io.emit('userAdded', liveUser)
         })
-        
-        // Set current time as last checked time
+ 
         lastDbCheck = new Date()
         
         if (newOrUpdatedUsers.length > 0) {
@@ -137,13 +127,11 @@ async function syncUsersWithDatabase() {
     }
 }
 
-// Add users to live_users room when created through this API
 app.post('/users', async (req, res) => {
     try {
         const newUser = new User(req.body)
         await newUser.save()
 
-        // Add user to live_users
         const liveUser = {
             _id: newUser._id.toString(),
             socketId: 'offline-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -152,8 +140,7 @@ app.post('/users', async (req, res) => {
         }
         
         liveUsers.set(liveUser._id, liveUser)
-        
-        // Broadcast new user to all connected clients
+
         io.emit('userAdded', liveUser)
         
         res.status(201).send({ message: 'user created'})
@@ -178,7 +165,6 @@ app.get('/users', async (req, res) => {
     }
 })
 
-// Endpoint to manually trigger a database sync
 app.get('/sync-users', async (req, res) => {
     try {
         const newUsers = await syncUsersWithDatabase()
@@ -191,7 +177,6 @@ app.get('/sync-users', async (req, res) => {
     }
 })
 
-// New endpoint to get a specific user by id
 app.get('/users/:id', async (req, res) => {
     try {
         const user = await User.findById(req.params.id)
@@ -204,7 +189,6 @@ app.get('/users/:id', async (req, res) => {
     }
 })
 
-// Initialize live users from database on server start
 async function initializeLiveUsers() {
     try {
         const users = await User.find()
@@ -218,8 +202,7 @@ async function initializeLiveUsers() {
             liveUsers.set(liveUser._id, liveUser)
         })
         console.log(`Initialized ${liveUsers.size} users in live_users room`)
-        
-        // Set up periodic sync (every 30 seconds)
+
         setInterval(syncUsersWithDatabase, 30000)
     } catch (err) {
         console.error('Failed to initialize live users:', err)

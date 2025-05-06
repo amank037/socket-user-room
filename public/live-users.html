@@ -211,7 +211,6 @@
         </div>
     </div>
 
-    <!-- Modal for User Details -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -227,17 +226,15 @@
 
     <script>
         $(document).ready(function() {
-            // Connect to socket.io
+
             const socket = io();
             
-            // Update last refresh time
             function updateLastRefreshTime() {
                 const now = new Date();
                 const timeStr = now.toLocaleTimeString();
                 $('#lastRefreshTime').text(timeStr);
             }
             
-            // Handle initial users list
             socket.on('initialUsers', function(users) {
                 $('#userList').empty();
                 
@@ -251,22 +248,18 @@
                 updateLastRefreshTime();
                 $('#refreshSpinner').hide();
             });
-            
-            // Handle new user added
+
             socket.on('userAdded', function(user) {
-                // Remove empty message if present
                 if ($('#userList .empty-message').length > 0) {
                     $('#userList').empty();
                 }
                 
-                // Check if user already exists in the list
                 if ($(`#userList li[data-id="${user._id}"]`).length === 0) {
                     addUserToList(user);
                     updateUserCount();
                 }
             });
             
-            // Function to add a user to the list
             function addUserToList(user) {
                 const isOnline = !user.socketId.startsWith('offline');
                 $('#userList').append(`
@@ -280,37 +273,31 @@
                 `);
             }
             
-            // Update user count
             function updateUserCount() {
                 const count = $('#userList li').length - $('#userList .empty-message').length;
                 $('#userCount').text(count);
             }
-            
-            // Handle manual refresh button
+
             $('#refreshBtn').click(function() {
                 $('#refreshSpinner').show();
                 socket.emit('refreshUsers');
             });
-            
-            // Handle click on user item to show details
+
             $(document).on('click', '.user-item', function() {
                 const userId = $(this).data('id');
                 showUserDetails(userId);
             });
-            
-            // Close modal when clicking on X
+
             $('.close').click(function() {
                 $('#userModal').hide();
             });
-            
-            // Close modal when clicking outside
+
             $(window).click(function(event) {
                 if ($(event.target).is('#userModal')) {
                     $('#userModal').hide();
                 }
             });
-            
-            // Function to show user details in modal
+
             function showUserDetails(userId) {
                 $('#userModal').show();
                 $('#userDetails').html('<div class="loading-overlay"><div class="loader"></div> Loading user details...</div>');
@@ -334,8 +321,7 @@
                     }
                 });
             }
-            
-            // Helper function to format address
+
             function formatAddress(address) {
                 if (!address) return 'Not provided';
                 
