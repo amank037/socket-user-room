@@ -4,7 +4,7 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 const http = require('http')
 const socketIo = require('socket.io')
-const bcrypt = require('bcryptjs') // You'll need to install this
+const bcrypt = require('bcryptjs')
 
 const app = express()
 const server = http.createServer(app)
