@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express')
 const mongoose = require('mongoose')
 const cors = require('cors')
 const http = require('http')
 const socketIo = require('socket.io')
+const bcrypt = require('bcrypt') // You'll need to install this
 
 const app = express()
 const server = http.createServer(app)
@@ -69,7 +71,7 @@ const User = mongoose.model('User', userSchema);
 
 
 const liveUsers = new Map()
-let lastDbCheck = new Date(0); // Initialize to past date
+let lastDbCheck = new Date(0);
 
 app.use(express.static('public'))
 app.use(cors())
@@ -82,8 +84,37 @@ io.on('connection', (socket) => {
         socket.emit('initialUsers', Array.from(liveUsers.values()))
     })
     
+    // Handle user login
+    socket.on('user_login', (user) => {
+        if (user && user._id) {
+            // Update the user's socket ID to show them as online
+            const existingUser = liveUsers.get(user._id)
+            if (existingUser) {
+                existingUser.socketId = socket.id
+                liveUsers.set(user._id, existingUser)
+                
+                // Broadcast to all clients that this user is now online
+                io.emit('userUpdated', existingUser)
+                console.log(`User ${user.email} is now online with socket ID: ${socket.id}`)
+            }
+        }
+    })
+    
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id)
+        
+        // Find and mark the user as offline
+        for (const [userId, user] of liveUsers.entries()) {
+            if (user.socketId === socket.id) {
+                user.socketId = 'offline-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
+                liveUsers.set(userId, user)
+                
+                // Broadcast to all clients that this user is now offline
+                io.emit('userUpdated', user)
+                console.log(`User ${user.email} is now offline`)
+                break
+            }
+        }
     })
 
     socket.on('refreshUsers', async () => {
@@ -126,6 +157,74 @@ async function syncUsersWithDatabase() {
         return []
     }
 }
+
+// Add login endpoint
+app.post('/auth/login', async (req, res) => {
+    try {
+        const { loginId, password } = req.body
+        
+        // Find user by loginId
+        const user = await User.findOne({ loginId })
+        if (!user) {
+            return res.status(401).send('Invalid login credentials')
+        }
+        
+        // Check password (ideally this should use bcrypt)
+        // For now, we'll do a simple comparison since we don't know if passwords are hashed
+        const passwordMatches = password === user.password
+        // If you implement bcrypt later:
+        // const passwordMatches = await bcrypt.compare(password, user.password)
+        
+        if (!passwordMatches) {
+            return res.status(401).send('Invalid login credentials')
+        }
+        
+        // Send back user info (excluding password)
+        const userInfo = {
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            loginId: user.loginId
+        }
+        
+        // Update the user's status in liveUsers map
+        const liveUser = {
+            _id: user._id.toString(),
+            socketId: 'online-pending', // Will be updated when socket connects
+            email: user.email,
+            name: `${user.firstName} ${user.lastName}`
+        }
+        
+        liveUsers.set(liveUser._id, liveUser)
+        
+        res.status(200).json({
+            message: 'Login successful',
+            user: userInfo
+        })
+    } catch (err) {
+        res.status(500).send({
+            message: 'Login failed',
+            error: err.message || 'Unknown error'
+        })
+    }
+})
+
+// Logout endpoint
+app.post('/auth/logout', (req, res) => {
+    const { userId } = req.body
+    
+    if (userId && liveUsers.has(userId)) {
+        const user = liveUsers.get(userId)
+        user.socketId = 'offline-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
+        liveUsers.set(userId, user)
+        
+        io.emit('userUpdated', user)
+        res.status(200).json({ message: 'Logout successful' })
+    } else {
+        res.status(400).json({ message: 'User not found' })
+    }
+})
 
 app.post('/users', async (req, res) => {
     try {
@@ -209,7 +308,7 @@ async function initializeLiveUsers() {
     }
 }
 
-mongoose.connect('mongodb+srv://amankhanapp:aman54321@cluster0.sk7quy9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect(process.env.MONGO_URI)
     .then(() => {
         console.log('Connected to MongoDB')
         initializeLiveUsers()

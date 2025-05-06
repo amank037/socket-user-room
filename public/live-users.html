@@ -186,11 +186,42 @@
             color: #888;
             font-style: italic;
         }
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .user-info {
+            font-size: 14px;
+            color: #4CAF50;
+        }
+        .logout-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .logout-btn:hover {
+            background-color: #d32f2f;
+        }
+        .highlight {
+            background-color: #e8f5e9;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Live Users</h1>
+        <div class="header-bar">
+            <h1>Live Users</h1>
+            <div class="user-info" id="currentUserInfo">
+                Not logged in
+                <button id="logoutBtn" class="logout-btn" style="display: none;">Logout</button>
+            </div>
+        </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <button id="refreshBtn" class="refresh-btn">
@@ -207,7 +238,7 @@
         </ul>
         
         <div class="navigation">
-            <a href="/index.html">Go to Registration Form</a>
+            <a href="/index.html">Go to Login</a>
         </div>
     </div>
 
@@ -226,8 +257,51 @@
 
     <script>
         $(document).ready(function() {
-
             const socket = io();
+            let currentUser = null;
+            
+            // Check if user is logged in from localStorage
+            function checkLoginStatus() {
+                const savedUser = localStorage.getItem('currentUser');
+                if (savedUser) {
+                    currentUser = JSON.parse(savedUser);
+                    $('#currentUserInfo').html(
+                        `Logged in as: <strong>${currentUser.firstName} ${currentUser.lastName}</strong> 
+                        <button id="logoutBtn" class="logout-btn">Logout</button>`
+                    );
+                    
+                    // Connect to socket with user info
+                    socket.emit('user_login', currentUser);
+                } else {
+                    $('#currentUserInfo').html(
+                        'Not logged in <a href="/index.html" style="margin-left: 10px;">Login</a>'
+                    );
+                }
+            }
+            
+            // Call this function on page load
+            checkLoginStatus();
+            
+            // Handle logout button click
+            $(document).on('click', '#logoutBtn', function() {
+                if (currentUser) {
+                    // Call logout API
+                    $.ajax({
+                        url: '/auth/logout',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ userId: currentUser._id }),
+                        success: function() {
+                            // Clear localStorage and redirect to login
+                            localStorage.removeItem('currentUser');
+                            window.location.href = '/index.html';
+                        },
+                        error: function() {
+                            alert('Logout failed. Please try again.');
+                        }
+                    });
+                }
+            });
             
             function updateLastRefreshTime() {
                 const now = new Date();
@@ -241,7 +315,14 @@
                 if (users.length === 0) {
                     $('#userList').html('<li class="empty-message">No users found. Click refresh to check for new users.</li>');
                 } else {
-                    users.forEach(addUserToList);
+                    users.forEach(function(user) {
+                        addUserToList(user);
+                    });
+                    
+                    // Highlight current user if logged in
+                    if (currentUser) {
+                        $(`#userList li[data-id="${currentUser._id}"]`).addClass('highlight');
+                    }
                 }
                 
                 updateUserCount();
@@ -257,18 +338,37 @@
                 if ($(`#userList li[data-id="${user._id}"]`).length === 0) {
                     addUserToList(user);
                     updateUserCount();
+                    
+                    // Highlight current user if it's the one that was just added
+                    if (currentUser && user._id === currentUser._id) {
+                        $(`#userList li[data-id="${currentUser._id}"]`).addClass('highlight');
+                    }
+                }
+            });
+            
+            // Handle user status update (online/offline)
+            socket.on('userUpdated', function(user) {
+                // Remove existing user item
+                $(`#userList li[data-id="${user._id}"]`).remove();
+                
+                // Add updated user
+                addUserToList(user);
+                
+                // Highlight current user
+                if (currentUser && user._id === currentUser._id) {
+                    $(`#userList li[data-id="${currentUser._id}"]`).addClass('highlight');
                 }
             });
             
             function addUserToList(user) {
-                const isOnline = !user.socketId.startsWith('offline');
+                const isOnline = user.socketId && !user.socketId.startsWith('offline');
                 $('#userList').append(`
                     <li class="user-item" data-id="${user._id}">
                         <div>
                             <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
                             <span class="user-email">${user.email}</span>
                         </div>
-                        <span class="user-socket">${user.socketId}</span>
+                        <span class="user-socket">${isOnline ? 'Online' : 'Offline'}</span>
                     </li>
                 `);
             }

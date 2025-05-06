@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>webservice</title>
+    <title>User Login</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -14,8 +14,8 @@
           background-color: #f4f4f4;
       }
       .container {
-          max-width: 800px;
-          margin: 0 auto;
+          max-width: 500px;
+          margin: 50px auto;
           background: white;
           padding: 30px;
           border-radius: 5px;
@@ -27,44 +27,32 @@
           margin-bottom: 30px;
       }
       .form-group {
-          margin-bottom: 15px;
+          margin-bottom: 20px;
       }
       label {
           display: block;
-          margin-bottom: 5px;
+          margin-bottom: 8px;
           font-weight: bold;
           color: #555;
       }
       input[type="text"],
-      input[type="email"],
       input[type="password"] {
           width: 100%;
-          padding: 10px;
+          padding: 12px;
           border: 1px solid #ddd;
           border-radius: 4px;
           box-sizing: border-box;
-          font-size: 15px;
+          font-size: 16px;
       }
       input:focus {
           outline: none;
           border-color: #4CAF50;
           box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
       }
-      fieldset {
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          padding: 15px;
-          margin-bottom: 20px;
-      }
-      legend {
-          padding: 0 10px;
-          font-weight: bold;
-          color: #555;
-      }
       button {
           background-color: #4CAF50;
           color: white;
-          padding: 12px 20px;
+          padding: 14px 20px;
           border: none;
           border-radius: 4px;
           cursor: pointer;
@@ -89,89 +77,114 @@
       .navigation a:hover {
           text-decoration: underline;
       }
-      .success-message {
+      .alert-message {
+          padding: 15px;
+          margin-bottom: 20px;
+          border-radius: 4px;
+          text-align: center;
           display: none;
+      }
+      .success-message {
           background-color: #dff0d8;
           color: #3c763d;
-          padding: 15px;
-          margin-bottom: 20px;
-          border-radius: 4px;
-          text-align: center;
       }
       .error-message {
-          display: none;
           background-color: #f2dede;
           color: #a94442;
-          padding: 15px;
-          margin-bottom: 20px;
-          border-radius: 4px;
+      }
+      .app-title {
           text-align: center;
+          margin-bottom: 20px;
+          color: #4CAF50;
       }
   </style>
 </head>
 <body>
-    <h2>User Form</h2>
-    <form id="userForm">
-        <label>First Name: <input type="text" id="firstName" name="firstName" required></label><br>
-        <label>Last Name: <input type="text" id="lastName" name="lastName" required></label><br>
-        <label>Mobile No: <input type="text" id="mobile" name="mobile" required></label><br>
-        <label>Email: <input type="email" id="email" name="email" required></label><br>
-    <fieldset>
-        <legend>Address:</legend>
-        <label>Street: <input type="text" id="street" name="street"></label><br>
-        <label>City: <input type="text" id="city" name="city"></label><br>
-        <label>State: <input type="text" id="state" name="state"></label><br>
-        <label>Country: <input type="text" id="country" name="country"></label><br>
-    </fieldset>
-        <label>Login ID: <input type="text" id="loginId" name="loginId" required></label><br>
-        <label>Password: <input type="password" id="password" name="password" required></label><br><br>
-
-    <button type="submit">Submit</button>         
-    </form>
+    <div class="container">
+        <h2 class="app-title">User Login</h2>
+        
+        <div id="successAlert" class="alert-message success-message">
+            Login successful! Redirecting to live users...
+        </div>
+        
+        <div id="errorAlert" class="alert-message error-message">
+            Invalid login credentials. Please try again.
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="loginId">Login ID:</label>
+                <input type="text" id="loginId" name="loginId" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit">Login</button>         
+        </form>
+        
+        <div class="navigation">
+            <a href="/users.html">View All Users</a>
+            <a href="/live-users.html">View Live Users</a>
+        </div>
+    </div>
 
     <script>
         const socket = io();
+        let currentUser = null;
         
-        $('#userForm').submit(function (e) {
-          e.preventDefault();
-      
-          const userData = {
-            firstName: $('#firstName').val(),
-            lastName: $('#lastName').val(),
-            mobile: $('#mobile').val(),
-            email: $('#email').val(),
-            address: {
-              street: $('#street').val(),
-              city: $('#city').val(),
-              state: $('#state').val(),
-              country: $('#country').val(),
-            },
-            loginId: $('#loginId').val(),
-            password: $('#password').val(),
-          };
-          console.log(userData)
-          $.ajax({
-            url: '/users',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(userData),
-            success: function (response) {
-              alert('user created')
-              
-              socket.emit('join_live_users', userData);
-              
-              $('#userForm')[0].reset()
-            },
-            error: function (xhr) {
-              alert('failed to create user: ' + xhr.responseText)
+        // Check if user is already logged in (from localStorage)
+        $(document).ready(function() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                // Reconnect the socket for the user
+                socket.emit('user_login', currentUser);
+                window.location.href = '/live-users.html';
             }
-          })
-        })
-      </script>
-      
+        });
+        
+        $('#loginForm').submit(function(e) {
+            e.preventDefault();
+            
+            const loginData = {
+                loginId: $('#loginId').val(),
+                password: $('#password').val()
+            };
+            
+            // Call API to authenticate user
+            $.ajax({
+                url: '/auth/login',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(loginData),
+                success: function(response) {
+                    // Save user info and show success message
+                    currentUser = response.user;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    // Connect to socket with user info
+                    socket.emit('user_login', currentUser);
+                    
+                    // Show success message and redirect
+                    $('#successAlert').show();
+                    $('#errorAlert').hide();
+                    
+                    // Redirect to live users page after a short delay
+                    setTimeout(function() {
+                        window.location.href = '/live-users.html';
+                    }, 1500);
+                },
+                error: function(xhr) {
+                    // Show error message
+                    $('#errorAlert').text(xhr.responseText || 'Login failed. Please check your credentials.');
+                    $('#errorAlert').show();
+                    $('#successAlert').hide();
+                }
+            });
+        });
+    </script>
 </body>
-<div class="navigation">
-    <a href="/users.html">View All Users</a>
-    <a href="/live-users.html">View Live Users</a>
-</div>
 </html>
